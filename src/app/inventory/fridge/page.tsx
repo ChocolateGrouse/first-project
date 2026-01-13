@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Camera, Upload, Refrigerator, Check, X, Sparkles } from 'lucide-react'
+import { ArrowLeft, Camera, Upload, Refrigerator, Check, X, Sparkles, AlertCircle } from 'lucide-react'
 import { addMultipleItems, guessItemDetails } from '@/lib/inventory-store'
 
 interface DetectedItem {
@@ -19,35 +19,56 @@ export default function FridgeScanPage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [detectedItems, setDetectedItems] = useState<DetectedItem[]>([])
   const [isAdding, setIsAdding] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       const reader = new FileReader()
       reader.onload = () => {
-        setUploadedImage(reader.result as string)
-        simulateProcessing()
+        const imageData = reader.result as string
+        setUploadedImage(imageData)
+        analyzeImage(imageData)
       }
       reader.readAsDataURL(file)
     }
   }
 
-  const simulateProcessing = () => {
+  const analyzeImage = async (imageData: string) => {
     setIsProcessing(true)
-    // Simulate AI analyzing the fridge photo
-    setTimeout(() => {
-      setDetectedItems([
-        { name: 'Milk', quantity: '1 gallon', confidence: 95, selected: true },
-        { name: 'Eggs', quantity: '~8 remaining', confidence: 88, selected: true },
-        { name: 'Orange Juice', quantity: '1 carton', confidence: 92, selected: true },
-        { name: 'Butter', quantity: '1 stick', confidence: 85, selected: true },
-        { name: 'Cheddar Cheese', quantity: '1 block', confidence: 78, selected: true },
-        { name: 'Yogurt', quantity: '3 cups', confidence: 90, selected: true },
-        { name: 'Lettuce', quantity: '1 head', confidence: 82, selected: true },
-        { name: 'Tomatoes', quantity: '~4', confidence: 75, selected: true },
-      ])
+    setError(null)
+
+    try {
+      const response = await fetch('/api/analyze-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: imageData, type: 'fridge' }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to analyze image')
+      }
+
+      if (data.items && Array.isArray(data.items)) {
+        setDetectedItems(
+          data.items.map((item: { name: string; quantity: string; confidence?: number }) => ({
+            name: item.name,
+            quantity: item.quantity || '1',
+            confidence: item.confidence || 80,
+            selected: true,
+          }))
+        )
+      } else {
+        setDetectedItems([])
+      }
+    } catch (err) {
+      console.error('Analysis error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to analyze image')
+    } finally {
       setIsProcessing(false)
-    }, 3000)
+    }
   }
 
   const removeItem = (index: number) => {
@@ -196,6 +217,25 @@ export default function FridgeScanPage() {
               </div>
               <h3 className="font-semibold text-blue-900">AI is scanning your fridge...</h3>
               <p className="text-blue-600 text-sm mt-1">Identifying items and estimating quantities</p>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && !isProcessing && (
+            <div className="bg-red-50 rounded-xl border border-red-200 p-6">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-6 h-6 text-red-500 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-red-900">Analysis Failed</h3>
+                  <p className="text-red-700 text-sm mt-1">{error}</p>
+                  <button
+                    onClick={() => uploadedImage && analyzeImage(uploadedImage)}
+                    className="mt-3 px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
