@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { MoreHorizontal, Calendar, Package, Trash2, Edit, X } from 'lucide-react'
-import { getInventoryItems, deleteInventoryItem, updateInventoryItem, type InventoryItem } from '@/lib/inventory-store'
+import { getInventoryItems, deleteInventoryItem, updateInventoryItem, getExpiryStatus, formatExpiryDisplay, getDaysUntilExpiry, type InventoryItem } from '@/lib/inventory-store'
 
 function getStatusBadge(status: string) {
   switch (status) {
+    case 'expired':
+      return 'bg-gray-800 text-white border-gray-800'
     case 'expiring':
       return 'bg-red-100 text-red-700 border-red-200'
     case 'good':
@@ -14,6 +16,21 @@ function getStatusBadge(status: string) {
       return 'bg-green-100 text-green-700 border-green-200'
     default:
       return 'bg-gray-100 text-gray-700 border-gray-200'
+  }
+}
+
+function getStatusLabel(status: string) {
+  switch (status) {
+    case 'expired':
+      return 'Expired'
+    case 'expiring':
+      return 'Expiring Soon'
+    case 'good':
+      return 'Use Soon'
+    case 'fresh':
+      return 'Fresh'
+    default:
+      return status
   }
 }
 
@@ -76,6 +93,8 @@ export function InventoryList({ category, search }: InventoryListProps) {
         quantity: Number(editForm.quantity) || 1,
         unit: editForm.unit,
         expiry: editForm.expiry,
+        expiryDate: editForm.expiry,
+        status: getExpiryStatus(editForm.expiry),
       })
       setItems(getInventoryItems())
       setEditingItem(null)
@@ -186,12 +205,11 @@ export function InventoryList({ category, search }: InventoryListProps) {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Expires in</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Expiration Date</label>
                 <input
-                  type="text"
+                  type="date"
                   value={editForm.expiry}
                   onChange={(e) => setEditForm({ ...editForm, expiry: e.target.value })}
-                  placeholder="e.g., 7 days"
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
@@ -268,13 +286,28 @@ export function InventoryList({ category, search }: InventoryListProps) {
                 </div>
               </div>
               <div className="mt-3 flex items-center justify-between">
-                <span className="flex items-center gap-1 text-sm text-gray-500">
-                  <Calendar className="w-4 h-4" />
-                  Expires in {item.expiry}
-                </span>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(item.status)}`}>
-                  {item.status}
-                </span>
+                {(() => {
+                  const expiryDate = item.expiryDate || item.expiry
+                  const status = getExpiryStatus(expiryDate)
+                  const displayText = formatExpiryDisplay(expiryDate)
+                  const days = getDaysUntilExpiry(expiryDate)
+
+                  return (
+                    <>
+                      <span className={`flex items-center gap-1 text-sm ${
+                        days < 0 ? 'text-gray-500' :
+                        days <= 2 ? 'text-red-600 font-medium' :
+                        days <= 5 ? 'text-amber-600' : 'text-gray-500'
+                      }`}>
+                        <Calendar className="w-4 h-4" />
+                        {displayText}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(status)}`}>
+                        {getStatusLabel(status)}
+                      </span>
+                    </>
+                  )
+                })()}
               </div>
             </div>
           ))}

@@ -7,10 +7,39 @@ export interface InventoryItem {
   category: string
   quantity: number
   unit: string
-  expiry: string
+  expiry: string  // Now stores ISO date string (e.g., "2024-01-20")
+  expiryDate?: string  // ISO date string for actual expiry date
   icon: string
-  status: 'fresh' | 'good' | 'expiring'
+  status: 'fresh' | 'good' | 'expiring' | 'expired'
   addedAt: string
+}
+
+// Helper to calculate days until expiry
+export function getDaysUntilExpiry(expiryDate: string): number {
+  const expiry = new Date(expiryDate)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  expiry.setHours(0, 0, 0, 0)
+  const diffTime = expiry.getTime() - today.getTime()
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+}
+
+// Helper to get status based on expiry date
+export function getExpiryStatus(expiryDate: string): 'fresh' | 'good' | 'expiring' | 'expired' {
+  const days = getDaysUntilExpiry(expiryDate)
+  if (days < 0) return 'expired'
+  if (days <= 2) return 'expiring'
+  if (days <= 5) return 'good'
+  return 'fresh'
+}
+
+// Helper to format expiry display
+export function formatExpiryDisplay(expiryDate: string): string {
+  const days = getDaysUntilExpiry(expiryDate)
+  if (days < 0) return `Expired ${Math.abs(days)} day${Math.abs(days) !== 1 ? 's' : ''} ago`
+  if (days === 0) return 'Expires today'
+  if (days === 1) return 'Expires tomorrow'
+  return `${days} days left`
 }
 
 const STORAGE_KEY = 'smart-kitchen-inventory'

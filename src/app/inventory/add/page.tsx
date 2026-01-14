@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Calendar, Package, Hash } from 'lucide-react'
-import { addInventoryItem, guessItemDetails } from '@/lib/inventory-store'
+import { addInventoryItem, guessItemDetails, getExpiryStatus } from '@/lib/inventory-store'
 
 const categories = [
   { id: 'produce', name: 'Produce', icon: '🥬' },
@@ -19,6 +19,13 @@ const categories = [
 
 const units = ['count', 'lbs', 'oz', 'gallon', 'quart', 'cup', 'bag', 'box', 'can', 'bottle']
 
+// Helper to get default expiry date (7 days from now)
+function getDefaultExpiryDate(): string {
+  const date = new Date()
+  date.setDate(date.getDate() + 7)
+  return date.toISOString().split('T')[0]
+}
+
 export default function AddItemPage() {
   const router = useRouter()
   const [isAdding, setIsAdding] = useState(false)
@@ -27,7 +34,7 @@ export default function AddItemPage() {
     category: '',
     quantity: '1',
     unit: 'count',
-    expiryDays: '7',
+    expiryDate: getDefaultExpiryDate(),
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -50,9 +57,10 @@ export default function AddItemPage() {
       category,
       quantity: Number(formData.quantity) || 1,
       unit: formData.unit,
-      expiry: `${formData.expiryDays} days`,
+      expiry: formData.expiryDate,
+      expiryDate: formData.expiryDate,
       icon,
-      status: 'fresh',
+      status: getExpiryStatus(formData.expiryDate),
     })
 
     // Redirect to inventory
@@ -153,24 +161,46 @@ export default function AddItemPage() {
           </div>
         </div>
 
-        {/* Expiry */}
+        {/* Expiry Date */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <label className="block">
-            <span className="text-sm font-medium text-gray-700">Expires in (days)</span>
+            <span className="text-sm font-medium text-gray-700">Expiration Date</span>
             <div className="mt-2 relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
-                type="number"
-                min="1"
-                value={formData.expiryDays}
-                onChange={(e) => setFormData({ ...formData, expiryDays: e.target.value })}
+                type="date"
+                min={new Date().toISOString().split('T')[0]}
+                value={formData.expiryDate}
+                onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
                 className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
               />
             </div>
             <p className="text-sm text-gray-500 mt-2">
-              How many days until this item expires?
+              When does this item expire?
             </p>
           </label>
+          {/* Quick date buttons */}
+          <div className="flex gap-2 mt-3">
+            {[3, 7, 14, 30].map((days) => {
+              const date = new Date()
+              date.setDate(date.getDate() + days)
+              const dateStr = date.toISOString().split('T')[0]
+              return (
+                <button
+                  key={days}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, expiryDate: dateStr })}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    formData.expiryDate === dateStr
+                      ? 'bg-green-100 text-green-700 border border-green-300'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {days} days
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {/* Submit Button */}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Refrigerator, AlertTriangle, CheckCircle, ShoppingCart } from 'lucide-react'
-import { getInventoryItems, getShoppingItems } from '@/lib/inventory-store'
+import { getInventoryItems, getShoppingItems, getExpiryStatus } from '@/lib/inventory-store'
 
 export function InventorySummary() {
   const [mounted, setMounted] = useState(false)
@@ -30,10 +30,18 @@ export function InventorySummary() {
   const updateCounts = () => {
     const inventory = getInventoryItems()
     const shopping = getShoppingItems()
+
+    // Calculate status dynamically based on expiry dates
+    const statusCounts = inventory.reduce((acc, item) => {
+      const status = getExpiryStatus(item.expiryDate || item.expiry)
+      acc[status] = (acc[status] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+
     setCounts({
       total: inventory.length,
-      expiring: inventory.filter(item => item.status === 'expiring').length,
-      fresh: inventory.filter(item => item.status === 'fresh' || item.status === 'good').length,
+      expiring: (statusCounts.expiring || 0) + (statusCounts.expired || 0),
+      fresh: (statusCounts.fresh || 0) + (statusCounts.good || 0),
       shopping: shopping.filter(item => !item.checked).length,
     })
   }

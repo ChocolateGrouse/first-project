@@ -10,6 +10,7 @@ import {
   clearCheckedShoppingItems,
   addMultipleItems,
   guessItemDetails,
+  getExpiryStatus,
   type ShoppingItem
 } from '@/lib/inventory-store'
 
@@ -64,6 +65,11 @@ export default function ShoppingPage() {
 
     const checkedItems = items.filter(item => item.checked)
 
+    // Get default expiry date (7 days from now)
+    const defaultExpiryDate = new Date()
+    defaultExpiryDate.setDate(defaultExpiryDate.getDate() + 7)
+    const expiryDateStr = defaultExpiryDate.toISOString().split('T')[0]
+
     // Convert checked shopping items to inventory items
     const itemsToAdd = checkedItems.map(item => {
       const { category, icon } = guessItemDetails(item.name)
@@ -72,9 +78,10 @@ export default function ShoppingPage() {
         category,
         quantity: 1,
         unit: item.quantity,
-        expiry: '7 days',
+        expiry: expiryDateStr,
+        expiryDate: expiryDateStr,
         icon,
-        status: 'fresh' as const,
+        status: getExpiryStatus(expiryDateStr),
       }
     })
 
