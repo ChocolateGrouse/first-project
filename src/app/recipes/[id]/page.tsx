@@ -4,15 +4,27 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft, Clock, Users, Star, Heart, ShoppingCart,
-  Check, X, Play, Plus, ChevronRight
+  Check, X, Play, Plus, ChevronRight, Loader2
 } from 'lucide-react'
 import {
   saveRecipe,
   unsaveRecipe,
   isRecipeSaved,
   addShoppingItem,
-  getShoppingItems
+  getShoppingItems,
+  addCustomVideo,
+  getCustomVideos,
+  type CustomVideo
 } from '@/lib/inventory-store'
+import { VideoModal } from '@/components/ui/VideoModal'
+
+interface YouTubeVideo {
+  id: string
+  title: string
+  thumbnail: string
+  duration: string
+  channelTitle: string
+}
 
 // Mock recipe detail
 const recipe = {
@@ -52,10 +64,6 @@ const recipe = {
     'Toss everything together and cook for another 2 minutes.',
     'Serve hot over rice and garnish with sesame seeds.',
   ],
-  videos: [
-    { id: 1, title: 'Quick Chicken Stir Fry Recipe', platform: 'youtube', duration: '8:24' },
-    { id: 2, title: 'Perfect Stir Fry Tips', platform: 'youtube', duration: '5:12' },
-  ],
 }
 
 export default function RecipeDetailPage() {
@@ -63,17 +71,59 @@ export default function RecipeDetailPage() {
   const [mounted, setMounted] = useState(false)
   const [addedToList, setAddedToList] = useState<string[]>([])
 
-  // Load saved state on mount
+  // Video state
+  const [youtubeVideos, setYoutubeVideos] = useState<YouTubeVideo[]>([])
+  const [customVideos, setCustomVideos] = useState<CustomVideo[]>([])
+  const [loadingVideos, setLoadingVideos] = useState(true)
+  const [videoError, setVideoError] = useState<string | null>(null)
+
+  // Video modal state
+  const [selectedVideo, setSelectedVideo] = useState<{ id: string; title: string } | null>(null)
+
+  // Add custom video modal
+  const [showAddVideoModal, setShowAddVideoModal] = useState(false)
+  const [customVideoUrl, setCustomVideoUrl] = useState('')
+  const [customVideoTitle, setCustomVideoTitle] = useState('')
+
+  // Load saved state and videos on mount
   useEffect(() => {
     setMounted(true)
     setIsSaved(isRecipeSaved(recipe.id))
+
     // Check which ingredients are already in shopping list
     const shoppingItems = getShoppingItems()
     const inList = recipe.missingIngredients
       .filter(ing => shoppingItems.some(item => item.name.toLowerCase() === ing.name.toLowerCase()))
       .map(ing => ing.name)
     setAddedToList(inList)
+
+    // Load custom videos
+    setCustomVideos(getCustomVideos(recipe.id))
+
+    // Fetch YouTube videos
+    fetchYouTubeVideos()
   }, [])
+
+  const fetchYouTubeVideos = async () => {
+    setLoadingVideos(true)
+    setVideoError(null)
+
+    try {
+      const response = await fetch(`/api/youtube/search?q=${encodeURIComponent(recipe.name)}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load videos')
+      }
+
+      setYoutubeVideos(data.videos || [])
+    } catch (err) {
+      console.error('Video fetch error:', err)
+      setVideoError(err instanceof Error ? err.message : 'Failed to load videos')
+    } finally {
+      setLoadingVideos(false)
+    }
+  }
 
   const handleToggleSave = () => {
     if (isSaved) {
@@ -110,6 +160,33 @@ export default function RecipeDetailPage() {
       }
     })
     setAddedToList(recipe.missingIngredients.map(ing => ing.name))
+  }
+
+  const handlePlayVideo = (videoId: string, title: string) => {
+    setSelectedVideo({ id: videoId, title })
+  }
+
+  const handleAddCustomVideo = () => {
+    if (!customVideoUrl || !customVideoTitle) return
+
+    // Extract YouTube video ID if it's a YouTube URL
+    let videoId = customVideoUrl
+    const youtubeMatch = customVideoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/)
+    if (youtubeMatch) {
+      videoId = youtubeMatch[1]
+    }
+
+    const newVideo = addCustomVideo({
+      recipeId: recipe.id,
+      url: videoId,
+      title: customVideoTitle,
+      platform: youtubeMatch ? 'youtube' : 'custom',
+    })
+
+    setCustomVideos([...customVideos, newVideo])
+    setShowAddVideoModal(false)
+    setCustomVideoUrl('')
+    setCustomVideoTitle('')
   }
 
   const totalIngredients = recipe.matchedIngredients.length + recipe.missingIngredients.length
@@ -294,26 +371,71 @@ export default function RecipeDetailPage() {
               <Play className="w-5 h-5 text-red-500" />
             </div>
             <div className="p-4 space-y-3">
-              {recipe.videos.map((video) => (
-                <button
-                  key={video.id}
-                  className="w-full p-3 bg-gray-50 rounded-lg hover:bg-gray-100 flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                      <Play className="w-5 h-5 text-red-500" fill="currentColor" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-gray-900">{video.title}</p>
-                      <p className="text-xs text-gray-500">{video.duration}</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600" />
-                </button>
-              ))}
+              {loadingVideos ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+              ) : videoError ? (
+                <div className="text-center py-4">
+                  <p className="text-sm text-gray-500">{videoError}</p>
+                  <button
+                    onClick={fetchYouTubeVideos}
+                    className="mt-2 text-sm text-green-600 hover:text-green-700 font-medium"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : youtubeVideos.length === 0 && customVideos.length === 0 ? (
+                <p className="text-center text-sm text-gray-500 py-4">No videos found</p>
+              ) : (
+                <>
+                  {/* YouTube Videos */}
+                  {youtubeVideos.map((video) => (
+                    <button
+                      key={video.id}
+                      onClick={() => handlePlayVideo(video.id, video.title)}
+                      className="w-full p-3 bg-gray-50 rounded-lg hover:bg-gray-100 flex items-center justify-between group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                          <Play className="w-5 h-5 text-red-500" fill="currentColor" />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-sm font-medium text-gray-900 line-clamp-1">{video.title}</p>
+                          <p className="text-xs text-gray-500">{video.duration}</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600" />
+                    </button>
+                  ))}
+
+                  {/* Custom Videos */}
+                  {customVideos.map((video) => (
+                    <button
+                      key={video.id}
+                      onClick={() => handlePlayVideo(video.url, video.title)}
+                      className="w-full p-3 bg-blue-50 rounded-lg hover:bg-blue-100 flex items-center justify-between group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <Play className="w-5 h-5 text-blue-500" fill="currentColor" />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-sm font-medium text-gray-900 line-clamp-1">{video.title}</p>
+                          <p className="text-xs text-gray-500">Custom video</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600" />
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
             <div className="px-4 pb-4">
-              <button className="w-full py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50">
+              <button
+                onClick={() => setShowAddVideoModal(true)}
+                className="w-full py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50"
+              >
                 + Add Custom Video
               </button>
             </div>
@@ -346,6 +468,64 @@ export default function RecipeDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Video Player Modal */}
+      {selectedVideo && (
+        <VideoModal
+          videoId={selectedVideo.id}
+          title={selectedVideo.title}
+          onClose={() => setSelectedVideo(null)}
+        />
+      )}
+
+      {/* Add Custom Video Modal */}
+      {showAddVideoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddVideoModal(false)} />
+          <div className="relative bg-white rounded-xl p-6 w-full max-w-md mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Custom Video</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Video Title</label>
+                <input
+                  type="text"
+                  value={customVideoTitle}
+                  onChange={(e) => setCustomVideoTitle(e.target.value)}
+                  placeholder="My favorite stir fry tutorial"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">YouTube URL or Video ID</label>
+                <input
+                  type="text"
+                  value={customVideoUrl}
+                  onChange={(e) => setCustomVideoUrl(e.target.value)}
+                  placeholder="https://youtube.com/watch?v=..."
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowAddVideoModal(false)}
+                className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddCustomVideo}
+                disabled={!customVideoUrl || !customVideoTitle}
+                className="flex-1 px-4 py-2.5 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 disabled:opacity-50"
+              >
+                Add Video
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -224,3 +224,63 @@ export function guessItemDetails(name: string): { category: string; icon: string
 
   return { category: 'pantry', icon: '📦' }
 }
+
+// User settings storage
+const USER_SETTINGS_KEY = 'smart-kitchen-settings'
+
+export interface UserSettings {
+  notifications: boolean
+  emailAlerts: boolean
+  darkMode: boolean
+  language: string
+}
+
+export function getUserSettings(): UserSettings {
+  if (typeof window === 'undefined') {
+    return { notifications: true, emailAlerts: true, darkMode: false, language: 'en' }
+  }
+  const data = localStorage.getItem(USER_SETTINGS_KEY)
+  return data ? JSON.parse(data) : { notifications: true, emailAlerts: true, darkMode: false, language: 'en' }
+}
+
+export function saveUserSettings(settings: UserSettings): void {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(USER_SETTINGS_KEY, JSON.stringify(settings))
+  window.dispatchEvent(new Event('settings-updated'))
+}
+
+// Custom videos storage
+const CUSTOM_VIDEOS_KEY = 'smart-kitchen-custom-videos'
+
+export interface CustomVideo {
+  id: number
+  recipeId: number
+  url: string
+  title: string
+  platform: 'youtube' | 'custom'
+  addedAt: string
+}
+
+export function getCustomVideos(recipeId?: number): CustomVideo[] {
+  if (typeof window === 'undefined') return []
+  const data = localStorage.getItem(CUSTOM_VIDEOS_KEY)
+  const videos: CustomVideo[] = data ? JSON.parse(data) : []
+  return recipeId ? videos.filter(v => v.recipeId === recipeId) : videos
+}
+
+export function addCustomVideo(video: Omit<CustomVideo, 'id' | 'addedAt'>): CustomVideo {
+  const videos = getCustomVideos()
+  const newVideo: CustomVideo = {
+    ...video,
+    id: Date.now(),
+    addedAt: new Date().toISOString(),
+  }
+  videos.push(newVideo)
+  localStorage.setItem(CUSTOM_VIDEOS_KEY, JSON.stringify(videos))
+  return newVideo
+}
+
+export function deleteCustomVideo(id: number): void {
+  const videos = getCustomVideos()
+  localStorage.setItem(CUSTOM_VIDEOS_KEY, JSON.stringify(videos.filter(v => v.id !== id)))
+}
