@@ -56,9 +56,8 @@ export default function RecipesPage() {
       setRecipes(data.recipes || [])
     } catch (err) {
       console.error('Error loading recipes:', err)
-      setError('Failed to load recipes. Make sure your Spoonacular API key is configured.')
-      // Fall back to mock data for demo purposes
-      setRecipes(getMockRecipes())
+      setError('Failed to load recipes. Make sure your Spoonacular API key is configured in .env.local')
+      setRecipes([])
     } finally {
       setLoading(false)
     }
@@ -210,8 +209,8 @@ export default function RecipesPage() {
       {/* Error State */}
       {error && !loading && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-700 text-sm">
-          <p className="font-medium">Note: {error}</p>
-          <p className="mt-1">Showing demo recipes for now.</p>
+          <p className="font-medium">{error}</p>
+          <p className="mt-1">Add SPOONACULAR_API_KEY to your environment to enable recipe search.</p>
         </div>
       )}
 
@@ -312,70 +311,4 @@ export default function RecipesPage() {
       )}
     </div>
   )
-}
-
-// Mock recipes for when API is not configured
-function getMockRecipes(): Recipe[] {
-  return [
-    {
-      id: 1,
-      name: 'Spinach & Egg Scramble',
-      image: '',
-      emoji: '🍳',
-      matchedIngredients: ['eggs', 'spinach', 'butter'],
-      missingIngredients: [],
-      matchPercentage: 100,
-      readyInMinutes: 10,
-    },
-    {
-      id: 2,
-      name: 'Chicken Stir Fry',
-      image: '',
-      emoji: '🥘',
-      matchedIngredients: ['chicken', 'rice', 'onion'],
-      missingIngredients: ['sesame oil', 'ginger'],
-      matchPercentage: 60,
-      readyInMinutes: 25,
-    },
-    {
-      id: 3,
-      name: 'Grilled Cheese Deluxe',
-      image: '',
-      emoji: '🧀',
-      matchedIngredients: ['bread', 'cheese', 'butter'],
-      missingIngredients: [],
-      matchPercentage: 100,
-      readyInMinutes: 12,
-    },
-    {
-      id: 4,
-      name: 'Fresh Garden Salad',
-      image: '',
-      emoji: '🥗',
-      matchedIngredients: ['spinach', 'tomatoes', 'onion'],
-      missingIngredients: ['feta cheese'],
-      matchPercentage: 75,
-      readyInMinutes: 8,
-    },
-    {
-      id: 5,
-      name: 'Creamy Pasta Carbonara',
-      image: '',
-      emoji: '🍝',
-      matchedIngredients: ['pasta', 'eggs', 'cheese'],
-      missingIngredients: ['bacon', 'parmesan'],
-      matchPercentage: 60,
-      readyInMinutes: 30,
-    },
-    {
-      id: 6,
-      name: 'Tomato Rice Bowl',
-      image: '',
-      emoji: '🍚',
-      matchedIngredients: ['rice', 'tomatoes', 'onion'],
-      missingIngredients: [],
-      matchPercentage: 100,
-      readyInMinutes: 20,
-    },
-  ]
 }
